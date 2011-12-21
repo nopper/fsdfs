@@ -1,5 +1,5 @@
+from time import time
 from filedb import FileDbBase
-import time
 
 class memoryFileDb(FileDbBase):
     '''
@@ -86,7 +86,7 @@ class memoryFileDb(FileDbBase):
         return innode
 
     def addNode(self,node,data):
-        data["lastUpdate"] = time.time()
+        data["lastUpdate"] = time()
 
         if "files" in data:
             self.processFilesData(node,data["files"])

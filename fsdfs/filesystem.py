@@ -5,21 +5,17 @@ import time
 import copy
 import threading
 import shutil
-import BaseHTTPServer
 import urllib2
 import urllib
 import random
-import urlparse
 import logging
-import socket
 
 try:
     import simplejson as json
-except:
+except ImportError:
     import json
 
 from hashlib import sha1
-from SocketServer import ThreadingMixIn
 from replicator import Replicator
 sys.path.insert(0, os.path.dirname(__file__))
 from filedb import loadFileDb
@@ -31,13 +27,16 @@ class Filesystem:
     '''
     This is the Filesystem class.
 
-    It takes a dictionnary in parameter which contains the configuration of the pseudo-filesystem such as:
+    It takes a dictionnary in parameter which contains the configuration of the
+    pseudo-filesystem such as:
 
     * host -- IP:Port of the new node (ie: localhost:4242)
     * datadir -- path of the folder where the files are to be stored
     * secret -- password for joining the distributed filesystem
-    * master -- the IP:Port of the master Filesystem server. If it's the same as host, then this server is the master
-    * maxstorage -- A number of bytes (or a string like "10G") that are available for fsdfs
+    * master -- the IP:Port of the master Filesystem server. If it's the same as
+                host, then this server is the master
+    * maxstorage -- A number of bytes (or a string like "10G") that are
+                    available for fsdfs
     '''
 
     defaultConfig = {
@@ -70,37 +69,46 @@ class Filesystem:
 
         self.filedb = False
 
-        # We didn't get any hostname but we got a port. Ask the master what is our IP then.
+        # We didn't get any hostname but we got a port. Ask the master what is
+        # our IP then.
         if "host" not in self.config and "port" in self.config:
-            self.debug("fsdfs only has port %s, autodetecting IP with master at %s ..." % (self.config["port"],self.config["master"]))
+            self.debug("fsdfs only has port %s, autodetecting IP with master "
+                       "at %s ..." % (self.config["port"],
+                                      self.config["master"]))
 
             for i in range(self.config["getIpTimeout"]):
                 try:
-                    ip = self.nodeRPC(self.config["master"],"GETIP")
+                    ip = self.nodeRPC(self.config["master"], "GETIP")
                     break
                 except:
                     time.sleep(1)
                     pass
 
-            self.config["host"] = "%s:%s" % (ip,self.config["port"])
+            self.config["host"] = "%s:%s" % (ip, self.config["port"])
 
 
-        self.ismaster = (self.config["master"] == self.config["host"]) or (self.config["master"] is True)
+        self.ismaster = (self.config["master"] == self.config["host"]) or \
+                        (self.config["master"] is True)
 
 
         self.host = self.config["host"]
 
         if self.config["master"] is True:
-            self.config["master"]=self.host
+            self.config["master"] = self.host
 
-        if type(self.config["maxstorage"]) == long or type(self.config["maxstorage"]) == int :
+        if type(self.config["maxstorage"]) == long or \
+           type(self.config["maxstorage"]) == int:
+
             self.maxstorage = self.config["maxstorage"]
+
         elif re.match("[0-9]+G", self.config["maxstorage"]):
-             self.maxstorage=int(self.config["maxstorage"][0:-1]) * 1024 * 1024 * 1024
+             self.maxstorage = int(self.config["maxstorage"][0:-1]) * 1024 ** 3
+
         else:
             raise Exception, "Unknown maxstorage format"
 
-        self.debug("fsdfs node starting on %s ; master is %s" % (self.host,self.config["master"]))
+        self.debug("fsdfs node starting on %s ; master is %s" % \
+                   (self.host, self.config["master"]))
 
     def getReplicationRules(self, filepath):
         '''
@@ -125,11 +133,11 @@ class Filesystem:
         return localpath
 
 
-    def debug(self,msg,type="debug"):
-        logging.debug("%s - %s" % (type,msg))
+    def debug(self, msg, type="debug"):
+        logging.debug("%s - %s" % (type, msg))
 
-    def error(self,msg,error=None):
-        logging.error("%s - %s" % (msg,error),exc_info=1)
+    def error(self, msg, error=None):
+        logging.error("%s - %s" % (msg, error), exc_info=1)
 
 
     def deleteFile(self, filepath):
@@ -148,8 +156,8 @@ class Filesystem:
             self.filedb.removeFileFromNode(filepath, self.host)
             self.report({"deleted":[filepath]})
             return True
-        except Exception,e:
-            self.error("While deleting file %s : %s" % e)
+        except Exception, exc:
+            self.error("While deleting file %s : %s" % exc)
             return False
 
     def nukeFile(self, filepath):
@@ -161,21 +169,21 @@ class Filesystem:
             return False
         else:
             self.performNuke(filepath)
-            self.filedb.update(filepath,{"nuked": time.time()})
+            self.filedb.update(filepath, {"nuked": time.time()})
 
 
             return True
 
-    def performNuke(self,file,nodes=False):
+    def performNuke(self, file, nodes=False):
 
         if not nodes:
             nodes = set(self.filedb.getNodes(file))
 
         for node in nodes:
-            deleted = ("ok"==self.nodeRPC(node,"DELETE",{"filepath":file}))
+            deleted = ("ok" == self.nodeRPC(node, "DELETE", {"filepath":file}))
 
             if deleted:
-                self.filedb.removeFileFromNode(file,node)
+                self.filedb.removeFileFromNode(file, node)
 
     """
     def performNukes(self):
@@ -203,7 +211,7 @@ class Filesystem:
 
         destpath = self.getLocalFilePath(filepath)
 
-        if destpath!=src:
+        if destpath != src:
 
             self.locks["importFileMkdir"].acquire()
             try:
@@ -212,10 +220,11 @@ class Filesystem:
             finally:
                 self.locks["importFileMkdir"].release()
 
-            if mode == "download" or ((type(src)==str or type(src)==unicode) and src.startswith("http://")):
+            if mode == "download" or \
+               (isinstance(src, basestring) and src.startswith("http://")):
 
                 #todo do we need further checks of complete transfer with this?
-                src = urllib2.urlopen(src,None,timeout=60)
+                src = urllib2.urlopen(src, None, timeout=60)
                 mode = "copyobj"
 
             if mode == "copy":
@@ -236,15 +245,20 @@ class Filesystem:
         if self.config["garbageOnImport"]:
             while (self.maxstorage - self.filedb.getSizeInNode(self.host))<size:
 
-                #remove most unneeded file(s)
+                # Remove most unneeded file(s)
                 f = self.filedb.getMaxKnInNode(self.host)[0]
                 kn = self.filedb.getKn(f)
-                if kn>self.config["garbageMinKn"]:
-                    self.debug("removing %s (kn=%s) to make space for %s" % (f,kn,filepath))
+
+                if kn > self.config["garbageMinKn"]:
+                    self.debug("removing %s (kn=%s) to make space for %s" %
+                               (f, kn, filepath))
                     self.deleteFile(f)
+
                 else:
-                    self.debug("can't import %s because %s has kn %s<=%s" % (filepath,f,kn,self.config["garbageMinKn"]))
-                    #can't remove file, kn is not high enough. Delete import.
+                    self.debug("can't import %s because %s has kn %s<=%s" % \
+                               (filepath, f, kn, self.config["garbageMinKn"]))
+
+                    # Can't remove file, kn is not high enough. Delete import.
                     os.remove(destpath)
 
                     return False
@@ -256,12 +270,13 @@ class Filesystem:
             "nodes": set([self.host]).union(self.filedb.getNodes(filepath)),
             "t": int(time.time()),
             "size": size,
-            "nuked":None,
-            "n":self.getReplicationRules(filepath)["n"],
+            "nuked": None,
+            "n": self.getReplicationRules(filepath)["n"],
 
-            #assume we're the only node to have the file, even if we're on a slave (he's currently unaware of other copies anyway)
-            "kn":1-self.getReplicationRules(filepath)["n"]
-            })
+            # Assume we're the only node to have the file, even if we're on a
+            # slave (he's currently unaware of other copies anyway)
+            "kn": 1 - self.getReplicationRules(filepath)["n"]
+        })
 
         self.report({"imported":[filepath]})
 
@@ -278,10 +293,11 @@ class Filesystem:
         if not self.filedb:
 
             filedb_options = {}
-            filedb_backend = self.config.get("filedb","sqlite")
-            if type(filedb_backend)==dict:
-                filedb_options=filedb_backend
-                filedb_backend=filedb_options["backend"]
+            filedb_backend = self.config.get("filedb", "sqlite")
+
+            if isinstance(filedb_backend, dict):
+                filedb_options = filedb_backend
+                filedb_backend = filedb_options["backend"]
 
             self.filedb = loadFileDb(filedb_backend, self, filedb_options)
 
@@ -302,7 +318,7 @@ class Filesystem:
         self.replicator.start()
 
 
-    def stop(self,wait=True):
+    def stop(self, wait=True):
         '''
         Stops the filesystem
         '''
@@ -329,11 +345,13 @@ class Filesystem:
         '''
 
         if not self.ismaster:
-            return self.nodeRPC(self.config["master"], "SEARCH", {"filepath": file})
+            return self.nodeRPC(self.config["master"], "SEARCH",
+                                {"filepath": file})
         else:
             nodes = self.filedb.getNodes(file)
 
-            #randomize nodes and always put the master at the end to avoid overloading it
+            # Randomize nodes and always put the master at the end to avoid
+            # overloading it
 
             nodes = list(nodes)
             random.shuffle(nodes)
@@ -345,7 +363,7 @@ class Filesystem:
 
             return nodes
 
-    def nodeRPC(self,host,method,params={},returnfd=False,timeout=30):
+    def nodeRPC(self, host, method, params={}, returnfd=False, timeout=30):
         '''
         Inter-node communication method
         '''
@@ -354,12 +372,16 @@ class Filesystem:
 
         query = json.dumps(params)
 
-        #print "http://%s/%s %s" % (host,method,"h=" + self.hashQuery(query) + "&p=" + urllib.quote(query))
-        ret = urllib2.urlopen("http://%s/%s" % (host, method),"h=" + self.hashQuery(query) + "&p=" + urllib.quote(query),timeout=timeout)
+        #print "http://%s/%s %s" % (host, method,
+        #                           "h=" + self.hashQuery(query) + \
+        #                           "&p=" + urllib.quote(query))
+        ret = urllib2.urlopen("http://%s/%s" % (host, method),
+                              "h=" + self.hashQuery(query) + \
+                              "&p=" + urllib.quote(query), timeout=timeout)
 
         if not returnfd:
             j = json.loads(ret.read())
-            ret.fp._sock.recv=None # http://bugs.python.org/issue1208304
+            ret.fp._sock.recv = None # http://bugs.python.org/issue1208304
             ret.fp._sock.close() # http://bugs.python.org/issue1208304
 
             ret.close()
@@ -375,13 +397,13 @@ class Filesystem:
         return sha1(sha1(query).hexdigest() + self.config["secret"]).hexdigest()
 
 
-    def selectFileToReplicate(self,node=False):
+    def selectFileToReplicate(self, node=False):
 
         if not node:
-            node=self.host
+            node = self.host
 
         if not self.ismaster:
-            return self.nodeRPC(self.config["master"], "SELECT",{"node":node})
+            return self.nodeRPC(self.config["master"], "SELECT", {"node":node})
         else:
 
             f = self.filedb.getMinKnNotInNode(node)
@@ -413,7 +435,9 @@ class Filesystem:
 
         for host in nodes:
             try:
-                remote = self.nodeRPC(host, "DOWNLOAD", {"filepath": filepath},returnfd=True,timeout=self.config["downloadTimeout"])
+                remote = self.nodeRPC(host, "DOWNLOAD", {"filepath": filepath},
+                                      returnfd=True,
+                                      timeout=self.config["downloadTimeout"])
             except Exception, err:
                 #print err
                 continue
@@ -427,15 +451,17 @@ class Filesystem:
 
         return False
 
-    def report(self,with_files=False):
+    def report(self, with_files=False):
         '''
         Sends the local status to the master server
         '''
         if self.ismaster:
-            self.filedb.addNode(self.host,self.getStatus(with_files=with_files))
+            self.filedb.addNode(self.host,
+                                self.getStatus(with_files=with_files))
         else:
             #print "reporting %s" % self.getStatus(with_files=with_files)
-            self.nodeRPC(self.config["master"], "REPORT", self.getStatus(with_files=with_files))
+            self.nodeRPC(self.config["master"], "REPORT",
+                         self.getStatus(with_files=with_files))
 
     def getGlobalStatus(self):
 
@@ -446,10 +472,10 @@ class Filesystem:
         if not self.ismaster:
             return self.nodeRPC(self.config["master"], "GLOBALSTATUS")
         else:
-
             status = self.getStatus()
 
-            minKns = [(self.filedb.getKn(f),f) for f in self.filedb.getMinKnAll(num=1)]
+            minKns = [(self.filedb.getKn(f), f)
+                      for f in self.filedb.getMinKnAll(num=1)]
 
             nodes = {}
             for node in self.filedb.listNodes():
@@ -461,13 +487,15 @@ class Filesystem:
             status["minKnGlobal"] = minKns
 
             for node in status["nodes"]:
-                status["nodes"][node]["maxKn"] = [(self.filedb.getKn(f),f) for f in self.filedb.getMaxKnInNode(node,num=1)]
+                status["nodes"][node]["maxKn"] = [(self.filedb.getKn(f), f)
+                    for f in self.filedb.getMaxKnInNode(node, num=1)
+                ]
 
 
             #pass thru JSON to have the same exact returns as if in remote fetch
             return json.loads(json.dumps(status))
 
-    def getStatus(self,with_files=False):
+    def getStatus(self, with_files=False):
         '''
         Return the status of a Filesystem server.
 
@@ -497,21 +525,24 @@ class Filesystem:
         return self.maxstorage - self.filedb.getSizeInNode(self.host)
 
 
-    def reimportDirectory(self,directory):
+    def reimportDirectory(self, directory):
 
         for root, dirs, files in os.walk(directory):
 
-            #print root,files
+            #print root, files
 
-            if root[-6:]==".fsdfs":
+            if root.endswith(".fsdfs"):
                 continue
 
             for file in files:
-                path=os.path.join(root[len(re.sub("/$","",directory))+1:],file)
+                path = os.path.join(
+                    root[len(re.sub("/$", "", directory)) + 1:], file
+                )
 
                 #print path
 
-                self.importFile(os.path.join(root,file),self.getVirtualFilePath(path),mode="move")
+                self.importFile(os.path.join(root, file),
+                                self.getVirtualFilePath(path), mode="move")
 
 
     def updateAllRules(self):

@@ -1,18 +1,27 @@
-import threading
-import time
+from time import sleep, time
+from threading import Thread
 
-class NodeWatcher(threading.Thread):
-    def __init__(self,fs):
-        threading.Thread.__init__(self)
+class NodeWatcher(Thread):
+    def __init__(self, fs):
+        Thread.__init__(self)
         self.daemon = True
         self.fs = fs
-        
+
     def run(self):
-        
+
         while True:
-            time.sleep(self.fs.config["reportInterval"]/2)
+            sleep(self.fs.config["reportInterval"] / 2)
+
             for node in self.fs.filedb.listNodes():
                 lastUpdate = self.fs.filedb.getNode(node)["lastUpdate"]
-                if lastUpdate<(time.time()-self.fs.config["reportInterval"]*self.fs.config["maxMissedReports"]):
-                    self.fs.debug("Node %s missed %s reports, removing it from the swarm" % (node,self.fs.config["maxMissedReports"]))
+
+                reportInterval = self.fs.config["reportInterval"]
+                maxMissedReports = self.fs.config["maxMissedReports"]
+
+                maxThreshold = time() - reportInterval * maxMissedReports
+
+                if lastUpdate < maxThreshold:
+                    self.fs.debug("Node %s missed %s reports, removing it " \
+                                  "from the swarm" % \
+                                  (node, self.fs.config["maxMissedReports"]))
                     self.fs.filedb.removeNode(node)
