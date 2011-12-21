@@ -424,6 +424,14 @@ class Filesystem:
                 "size":self.filedb.getSize(f)
             }
 
+    def pushFile(self, filepath, host=None):
+        if not host:
+            host = self.config["master"]
+
+        return self.nodeRPC(host, "PUSH", {
+            "filepath": filepath,
+            "node": [self.getStatus()["node"]]
+        })
 
     def downloadFile(self, filepath, nodes=False):
         '''
@@ -432,6 +440,7 @@ class Filesystem:
 
         if not nodes:
             nodes = self.searchFile(filepath)
+
 
         for host in nodes:
             try:

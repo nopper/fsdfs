@@ -93,6 +93,14 @@ class myHandler(BaseHTTPRequestHandler):
                     self.simpleResponse(503,
                                         "couldn't make space for this file")
 
+            elif p[1] == "PUSH":
+
+                if self.server.fs.downloadFile(params["filepath"],
+                                               params["node"]):
+                    self.simpleResponse(200, "ok")
+                else:
+                    self.simpleResponse(503, "error while downloading file")
+
             elif p[1] == "NUKE":
 
                 nuked = self.server.fs.nukeFile(params["filepath"])
