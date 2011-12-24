@@ -72,14 +72,14 @@ class memoryFileDb(FileDbBase):
         return self.files[file]["size"]
 
     def listAll(self):
-        return set([f for f in self.files
+        return set([f for f in self.files.keys()
                     if not self.files[f].get("nuked",False)])
 
     def listInNode(self,node):
 
         innode = set()
 
-        for f in self.files:
+        for f in self.files.keys():
             if node in self.getNodes(f):
                 innode.add(f)
 
@@ -109,7 +109,7 @@ class memoryFileDb(FileDbBase):
             del self.nodes[node]
 
         #also delete in all files
-        for f in self.files:
+        for f in self.files.keys():
             if node in self.files[f]["nodes"]:
                 self.files[f]["nodes"].discard(node)
 

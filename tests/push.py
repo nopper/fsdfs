@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import os, sys, re
+import os
+import sys
 import unittest
-import threading
 import shutil
 import logging
-logging.basicConfig(level=logging.DEBUG)
 from time import sleep
 
 sys.path.insert(0, os.path.join('.'))
 from fsdfs.filesystem import Filesystem
+
+logging.basicConfig(level=logging.DEBUG)
 
 class TestFS(Filesystem):
     _rules = {"n": 1}
@@ -80,7 +81,10 @@ class pushTests(unittest.TestCase):
             self.assertTrue(os.path.isfile(node.getLocalFilePath(destpath)))
 
             if os.path.isfile(node.getLocalFilePath(destpath)):
-                self.assertEquals(open(node.getLocalFilePath(destpath)).read(),open(destpath).read())
+                self.assertEquals(
+                    open(node.getLocalFilePath(destpath)).read(),
+                    open(destpath).read()
+                )
         else:
             self.assertFalse(os.path.isfile(node.getLocalFilePath(destpath)))
 

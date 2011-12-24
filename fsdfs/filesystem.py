@@ -431,7 +431,7 @@ class Filesystem:
         return self.nodeRPC(host, "PUSH", {
             "filepath": filepath,
             "node": [self.getStatus()["node"]]
-        })
+        }, timeout=None)
 
     def downloadFile(self, filepath, nodes=False):
         '''
